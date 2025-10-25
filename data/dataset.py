@@ -1,8 +1,9 @@
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Subset
 from PIL import Image
 import os
 import numpy as np
+from collections import defaultdict
 
 # Dataset for 2025 AI Challenge
 class DNA2025Dataset(Dataset):
@@ -21,7 +22,7 @@ class DNA2025Dataset(Dataset):
         self.data_pairs = []
         self._load_data()
 
-        print(f"\n✅ Total loaded Image: {len(self.data_pairs)}\n")
+        print(f"\n✅ Total loaded Image: {len(self.data_pairs)}")
 
     def _get_label_filename(self, image_filename):
         if image_filename.endswith('.jpg'):
@@ -110,5 +111,43 @@ class DNA2025Dataset(Dataset):
 
         return image, label, data_info['folder']
 
+def split_dataset_by_folder(dataset, train_ratio=0.8, seed=42):
+    np.random.seed(seed)
+
+    folder_indices = defaultdict(list)
+    for idx in range(len(dataset.data_pairs)):
+        folder = dataset.data_pairs[idx]['folder']
+        folder_indices[folder].append(idx)
+
+    train_indices = []
+    val_indices = []
+
+    print("\n=== Result of split by folders ===")
+
+    for folder, indices in sorted(folder_indices.items()):
+        np.random.shuffle(indices)
+        split_point = int(len(indices) * train_ratio)
+
+        train_indices.extend(indices[:split_point])
+        val_indices.extend(indices[split_point:])
+
+        print(f"{folder}: {split_point:>4} train, {len(indices) - split_point:>4} val")
+    
+    return train_indices, val_indices
+
 if __name__ == "__main__":
-    dataset = DNA2025Dataset('./data/SemanticDataset_final')
+    full_train_dataset = DNA2025Dataset('./data/SemanticDataset_final', 'train')
+
+    train_indices, val_indices = split_dataset_by_folder(
+        full_train_dataset,
+        train_ratio=0.8,
+        seed=42
+    )
+
+    train_dataset = Subset(full_train_dataset, train_indices)
+    val_dataset = Subset(full_train_dataset, val_indices)
+
+    print(f"Train samples: {len(train_dataset)}")
+    print(f"Val samples: {len(val_dataset)}")
+    print(f"Ratio -> {len(train_dataset)/(len(train_dataset)+len(val_dataset)):.1%}\
+ : {len(val_dataset)/(len(train_dataset)+len(val_dataset)):.1%}")
